@@ -344,54 +344,73 @@ RSpec.describe "bundle install with gem sources" do
       expect(File.exist?(bundled_app_lock)).to eq(true)
     end
 
-    context "throws a warning if a gem is added twice in Gemfile" do
-      it "without version requirements" do
-        install_gemfile <<-G, :raise_on_error => false
-          source "#{file_uri_for(gem_repo2)}"
-          gem "rack"
-          gem "rack"
-        G
+    it "throws a warning if a gem is added twice in Gemfile without version requirements" do
+      install_gemfile <<-G, :raise_on_error => false
+        source "#{file_uri_for(gem_repo2)}"
+        gem "rack"
+        gem "rack"
+      G
 
-        expect(err).to include("Your Gemfile lists the gem rack (>= 0) more than once.")
-        expect(err).to include("Remove any duplicate entries and specify the gem only once.")
-        expect(err).to include("While it's not a problem now, it could cause errors if you change the version of one of them later.")
-      end
-
-      it "with same versions" do
-        install_gemfile <<-G, :raise_on_error => false
-          source "#{file_uri_for(gem_repo2)}"
-          gem "rack", "1.0"
-          gem "rack", "1.0"
-        G
-
-        expect(err).to include("Your Gemfile lists the gem rack (= 1.0) more than once.")
-        expect(err).to include("Remove any duplicate entries and specify the gem only once.")
-        expect(err).to include("While it's not a problem now, it could cause errors if you change the version of one of them later.")
-      end
+      expect(err).to include("Your Gemfile lists the gem rack (>= 0) more than once.")
+      expect(err).to include("Remove any duplicate entries and specify the gem only once.")
+      expect(err).to include("While it's not a problem now, it could cause errors if you change the version of one of them later.")
     end
 
-    context "throws an error if a gem is added twice in Gemfile" do
-      it "when version of one dependency is not specified" do
-        install_gemfile <<-G, :raise_on_error => false
-          source "#{file_uri_for(gem_repo2)}"
-          gem "rack"
-          gem "rack", "1.0"
-        G
+    it "throws a warning if a gem is added twice in Gemfile with same versions" do
+      install_gemfile <<-G, :raise_on_error => false
+        source "#{file_uri_for(gem_repo2)}"
+        gem "rack", "1.0"
+        gem "rack", "1.0"
+      G
 
-        expect(err).to include("You cannot specify the same gem twice with different version requirements")
-        expect(err).to include("You specified: rack (>= 0) and rack (= 1.0).")
+      expect(err).to include("Your Gemfile lists the gem rack (= 1.0) more than once.")
+      expect(err).to include("Remove any duplicate entries and specify the gem only once.")
+      expect(err).to include("While it's not a problem now, it could cause errors if you change the version of one of them later.")
+    end
+
+    it "does not throw a warning if a gem is added once in Gemfile and also inside a gemspec as a development dependency" do
+      build_lib "my-gem", :path => bundled_app do |s|
+        s.add_development_dependency "my-private-gem"
       end
 
-      it "when different versions of both dependencies are specified" do
-        install_gemfile <<-G, :raise_on_error => false
-          source "#{file_uri_for(gem_repo2)}"
-          gem "rack", "1.0"
-          gem "rack", "1.1"
-        G
-
-        expect(err).to include("You cannot specify the same gem twice with different version requirements")
-        expect(err).to include("You specified: rack (= 1.0) and rack (= 1.1).")
+      build_repo2 do
+        build_gem "my-private-gem"
       end
+
+      gemfile <<~G
+        source "#{file_uri_for(gem_repo2)}"
+
+        gemspec
+
+        gem "my-private-gem", :group => :development
+      G
+
+      bundle :install
+
+      expect(err).to be_empty
+      expect(the_bundle).to include_gems("my-private-gem 1.0")
+    end
+
+    it "throws an error if a gem is added twice in Gemfile when version of one dependency is not specified" do
+      install_gemfile <<-G, :raise_on_error => false
+        source "#{file_uri_for(gem_repo2)}"
+        gem "rack"
+        gem "rack", "1.0"
+      G
+
+      expect(err).to include("You cannot specify the same gem twice with different version requirements")
+      expect(err).to include("You specified: rack (>= 0) and rack (= 1.0).")
+    end
+
+    it "throws an error if a gem is added twice in Gemfile when different versions of both dependencies are specified" do
+      install_gemfile <<-G, :raise_on_error => false
+        source "#{file_uri_for(gem_repo2)}"
+        gem "rack", "1.0"
+        gem "rack", "1.1"
+      G
+
+      expect(err).to include("You cannot specify the same gem twice with different version requirements")
+      expect(err).to include("You specified: rack (= 1.0) and rack (= 1.1).")
     end
 
     it "gracefully handles error when rubygems server is unavailable" do
@@ -580,8 +599,10 @@ RSpec.describe "bundle install with gem sources" do
   end
 
   describe "when bundle path does not have write access", :permissions do
+    let(:bundle_path) { bundled_app("vendor") }
+
     before do
-      FileUtils.mkdir_p(bundled_app("vendor"))
+      FileUtils.mkdir_p(bundle_path)
       gemfile <<-G
         source "#{file_uri_for(gem_repo1)}"
         gem 'rack'
@@ -589,11 +610,32 @@ RSpec.describe "bundle install with gem sources" do
     end
 
     it "should display a proper message to explain the problem" do
-      FileUtils.chmod(0o500, bundled_app("vendor"))
+      FileUtils.chmod(0o500, bundle_path)
 
       bundle "config set --local path vendor"
       bundle :install, :raise_on_error => false
-      expect(err).to include(bundled_app("vendor").to_s)
+      expect(err).to include(bundle_path.to_s)
+      expect(err).to include("grant write permissions")
+    end
+  end
+
+  describe "when bundle cache path does not have write access", :permissions do
+    let(:cache_path) { bundled_app("vendor/#{Bundler.ruby_scope}/cache") }
+
+    before do
+      FileUtils.mkdir_p(cache_path)
+      gemfile <<-G
+        source "#{file_uri_for(gem_repo1)}"
+        gem 'rack'
+      G
+    end
+
+    it "should display a proper message to explain the problem" do
+      FileUtils.chmod(0o500, cache_path)
+
+      bundle "config set --local path vendor"
+      bundle :install, :raise_on_error => false
+      expect(err).to include(cache_path.to_s)
       expect(err).to include("grant write permissions")
     end
   end

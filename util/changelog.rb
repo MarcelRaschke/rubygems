@@ -5,7 +5,7 @@ require "yaml"
 class Changelog
   def self.for_rubygems(version)
     @rubygems ||= new(
-      File.expand_path("../History.txt", __dir__),
+      File.expand_path("../CHANGELOG.md", __dir__),
       version,
     )
   end
@@ -32,7 +32,6 @@ class Changelog
 
   def release_notes
     current_version_title = "#{release_section_token}#{version}"
-    current_minor_title = "#{release_section_token}#{version.segments[0, 2].join(".")}"
 
     current_version_index = lines.find_index {|line| line.strip =~ /^#{current_version_title}($|\b)/ }
     unless current_version_index
@@ -41,7 +40,7 @@ class Changelog
     current_version_index += 1
     previous_version_lines = lines[current_version_index.succ...-1]
     previous_version_index = current_version_index + (
-      previous_version_lines.find_index {|line| line.start_with?(release_section_token) && !line.start_with?(current_minor_title) } ||
+      previous_version_lines.find_index {|line| line.start_with?(release_section_token) } ||
       lines.count
     )
 
@@ -61,13 +60,13 @@ class Changelog
   def change_types_for_blog
     types = release_notes
       .select {|line| change_types.include?(line) }
-      .map {|line| line.downcase.tr '^a-z ', '' }
+      .map {|line| line.downcase.tr('^a-z ', '').strip }
       .uniq
 
     last_change_type = types.pop
 
     if types.empty?
-      types = ''
+      types = +''
     else
       types = types.join(', ') << ' and '
     end

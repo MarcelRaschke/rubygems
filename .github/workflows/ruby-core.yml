@@ -6,12 +6,11 @@ on:
   push:
     branches:
       - master
-      - 3.2
 
 jobs:
   ruby_core:
     name: ${{matrix.target}} under a ruby-core setup
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
@@ -46,16 +45,16 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: rubygems/rubygems
-      - name: Test RubyGems
+      - name: Sync tools
         run: |
           ruby tool/sync_default_gems.rb rubygems
-          make test-all TESTS="rubygems -j2"
+        working-directory: ruby/ruby
+      - name: Test RubyGems
+        run: make -j2 -s test-all TESTS="rubygems --no-retry"
         working-directory: ruby/ruby
         if: matrix.target == 'Rubygems'
       - name: Test Bundler
         run: |
-          ruby tool/sync_default_gems.rb bundler
-          git checkout lib/bundler/bundler.gemspec
           git add .
           make test-bundler-parallel
         working-directory: ruby/ruby

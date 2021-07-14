@@ -37,7 +37,7 @@ module Bundler
   environment_preserver = EnvironmentPreserver.from_env
   ORIGINAL_ENV = environment_preserver.restore
   environment_preserver.replace_with_backup
-  SUDO_MUTEX = Mutex.new
+  SUDO_MUTEX = Thread::Mutex.new
 
   autoload :Definition,             File.expand_path("bundler/definition", __dir__)
   autoload :Dependency,             File.expand_path("bundler/dependency", __dir__)
@@ -63,13 +63,13 @@ module Bundler
   autoload :Resolver,               File.expand_path("bundler/resolver", __dir__)
   autoload :Retry,                  File.expand_path("bundler/retry", __dir__)
   autoload :RubyDsl,                File.expand_path("bundler/ruby_dsl", __dir__)
-  autoload :RubyGemsGemInstaller,   File.expand_path("bundler/rubygems_gem_installer", __dir__)
   autoload :RubyVersion,            File.expand_path("bundler/ruby_version", __dir__)
   autoload :Runtime,                File.expand_path("bundler/runtime", __dir__)
   autoload :Settings,               File.expand_path("bundler/settings", __dir__)
   autoload :SharedHelpers,          File.expand_path("bundler/shared_helpers", __dir__)
   autoload :Source,                 File.expand_path("bundler/source", __dir__)
   autoload :SourceList,             File.expand_path("bundler/source_list", __dir__)
+  autoload :SourceMap,              File.expand_path("bundler/source_map", __dir__)
   autoload :SpecSet,                File.expand_path("bundler/spec_set", __dir__)
   autoload :StubSpecification,      File.expand_path("bundler/stub_specification", __dir__)
   autoload :UI,                     File.expand_path("bundler/ui", __dir__)
@@ -198,7 +198,7 @@ module Bundler
 
     def frozen_bundle?
       frozen = settings[:deployment]
-      frozen ||= settings[:frozen] unless feature_flag.deployment_means_frozen?
+      frozen ||= settings[:frozen]
       frozen
     end
 
@@ -212,13 +212,10 @@ module Bundler
         end
     end
 
-    def locked_bundler_version
-      return nil unless defined?(@definition) && @definition
+    def most_specific_locked_platform?(platform)
+      return false unless defined?(@definition) && @definition
 
-      locked_gems = definition.locked_gems
-      return nil unless locked_gems
-
-      locked_gems.bundler_version
+      definition.most_specific_locked_platform == platform
     end
 
     def ruby_scope
@@ -239,8 +236,9 @@ module Bundler
         end
 
         if warning
-          user_home = tmp_home_path(warning)
-          Bundler.ui.warn "#{warning}\nBundler will use `#{user_home}' as your home directory temporarily.\n"
+          Bundler.ui.warn "#{warning}\n"
+          user_home = tmp_home_path
+          Bundler.ui.warn "Bundler will use `#{user_home}' as your home directory temporarily.\n"
           user_home
         else
           Pathname.new(home)
@@ -444,7 +442,7 @@ EOF
     end
 
     def local_platform
-      return Gem::Platform::RUBY if settings[:force_ruby_platform]
+      return Gem::Platform::RUBY if settings[:force_ruby_platform] || Gem.platforms == [Gem::Platform::RUBY]
       Gem::Platform.local
     end
 
@@ -687,15 +685,13 @@ EOF
       Bundler.rubygems.clear_paths
     end
 
-    def tmp_home_path(warning)
+    def tmp_home_path
       Kernel.send(:require, "tmpdir")
       SharedHelpers.filesystem_access(Dir.tmpdir) do
         path = Bundler.tmp
         at_exit { Bundler.rm_rf(path) }
         path
       end
-    rescue RuntimeError => e
-      raise e.exception("#{warning}\nBundler also failed to create a temporary home directory':\n#{e}")
     end
 
     # @param env [Hash]

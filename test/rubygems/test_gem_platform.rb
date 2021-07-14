@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-require 'rubygems/test_case'
+require_relative 'helper'
 require 'rubygems/platform'
 require 'rbconfig'
 
@@ -354,6 +354,14 @@ class TestGemPlatform < Gem::TestCase
 
     util_set_arch 'sparc-solaris2.8'
     assert_local_match 'sparc-solaris2.8-mq5.3'
+  end
+
+  def test_inspect
+    result = Gem::Platform.new("universal-java11").inspect
+
+    assert_equal 1, result.scan(/@cpu=/).size
+    assert_equal 1, result.scan(/@os=/).size
+    assert_equal 1, result.scan(/@version=/).size
   end
 
   def assert_local_match(name)

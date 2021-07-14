@@ -4,22 +4,6 @@ require_relative "match_platform"
 
 module Bundler
   class LazySpecification
-    Identifier = Struct.new(:name, :version, :platform)
-    class Identifier
-      include Comparable
-      def <=>(other)
-        return unless other.is_a?(Identifier)
-        [name, version, platform_string] <=> [other.name, other.version, other.platform_string]
-      end
-
-      protected
-
-      def platform_string
-        platform_string = platform.to_s
-        platform_string == Index::RUBY ? Index::NULL : platform_string
-      end
-    end
-
     include MatchPlatform
 
     attr_reader :name, :version, :dependencies, :platform
@@ -89,7 +73,12 @@ module Bundler
         same_platform_candidates = candidates.select do |spec|
           MatchPlatform.platforms_match?(spec.platform, platform_object)
         end
-        search = same_platform_candidates.last || candidates.last
+        installable_candidates = same_platform_candidates.select do |spec|
+          !spec.is_a?(EndpointSpecification) ||
+            (spec.required_ruby_version.satisfied_by?(Gem.ruby_version) &&
+              spec.required_rubygems_version.satisfied_by?(Gem.rubygems_version))
+        end
+        search = installable_candidates.last || same_platform_candidates.last
         search.dependencies = dependencies if search && (search.is_a?(RemoteSpecification) || search.is_a?(EndpointSpecification))
         search
       end
@@ -108,12 +97,19 @@ module Bundler
     end
 
     def identifier
-      @__identifier ||= Identifier.new(name, version, platform)
+      @__identifier ||= [name, version, platform_string]
     end
 
     def git_version
       return unless source.is_a?(Bundler::Source::Git)
       " #{source.revision[0..6]}"
+    end
+
+    protected
+
+    def platform_string
+      platform_string = platform.to_s
+      platform_string == Index::RUBY ? Index::NULL : platform_string
     end
 
     private
@@ -131,17 +127,16 @@ module Bundler
     end
 
     #
-    # Bundler 2.2.0 was the first version that records the full resolution
-    # including platform specific gems in the lockfile, which means that if a
-    # gem with RUBY platform is recorded, the RUBY platform version of the gem
-    # should be installed. Previously bundler would record only generic versions
-    # in the lockfile and then install the most specific platform variant if
-    # available.
+    # For backwards compatibility with existing lockfiles, if the most specific
+    # locked platform is RUBY, we keep the previous behaviour of resolving the
+    # best platform variant at materiliazation time. For previous bundler
+    # versions (before 2.2.0) this was always the case (except when the lockfile
+    # only included non-ruby platforms), but we're also keeping this behaviour
+    # on newer bundlers unless users generate the lockfile from scratch or
+    # explicitly add a more specific platform.
     #
     def ruby_platform_materializes_to_ruby_platform?
-      locked_bundler_version = Bundler.locked_bundler_version
-
-      locked_bundler_version.nil? || Gem::Version.new(locked_bundler_version) >= Gem::Version.new("2.2.0")
+      !Bundler.most_specific_locked_platform?(Gem::Platform::RUBY) || Bundler.settings[:force_ruby_platform]
     end
   end
 end
