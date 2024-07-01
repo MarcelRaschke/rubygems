@@ -34,6 +34,10 @@ module Bundler
       Gem::Command.build_args = args
     end
 
+    def set_target_rbconfig(path)
+      Gem.set_target_rbconfig(path)
+    end
+
     def loaded_specs(name)
       Gem.loaded_specs[name]
     end
@@ -48,7 +52,7 @@ module Bundler
     end
 
     def validate(spec)
-      Bundler.ui.silence { spec.validate(false) }
+      Bundler.ui.silence { spec.validate_for_resolution }
     rescue Gem::InvalidSpecificationException => e
       error_message = "The gemspec at #{spec.loaded_from} is not valid. Please fix this gemspec.\n" \
         "The validation error was '#{e.message}'\n"

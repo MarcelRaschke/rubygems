@@ -222,7 +222,7 @@ class Gem::Installer
     ruby_executable = false
     existing = nil
 
-    File.open generated_bin, "rb" do |io|
+    Gem.open_file_with_flock generated_bin, "rb+" do |io|
       line = io.gets
       shebang = /^#!.*ruby/o
 
@@ -847,7 +847,7 @@ TEXT
   # configure scripts and rakefiles or mkrf_conf files.
 
   def build_extensions
-    builder = Gem::Ext::Builder.new spec, build_args
+    builder = Gem::Ext::Builder.new spec, build_args, Gem.target_rbconfig
 
     builder.build_extensions
   end
@@ -993,7 +993,7 @@ TEXT
   end
 
   def rb_config
-    RbConfig::CONFIG
+    Gem.target_rbconfig
   end
 
   def ruby_install_name

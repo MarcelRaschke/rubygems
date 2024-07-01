@@ -33,9 +33,9 @@ RSpec.describe "bundle gem" do
   let(:minitest_test_class_name) { "class TestMygem < Minitest::Test" }
 
   before do
-    sys_exec("git config --global user.name 'Bundler User'")
-    sys_exec("git config --global user.email user@example.com")
-    sys_exec("git config --global github.user bundleuser")
+    git("config --global user.name 'Bundler User'")
+    git("config --global user.email user@example.com")
+    git("config --global github.user bundleuser")
 
     global_config "BUNDLE_GEM__MIT" => "false", "BUNDLE_GEM__TEST" => "false", "BUNDLE_GEM__COC" => "false", "BUNDLE_GEM__LINTER" => "false",
                   "BUNDLE_GEM__CI" => "false", "BUNDLE_GEM__CHANGELOG" => "false"
@@ -109,7 +109,7 @@ RSpec.describe "bundle gem" do
     end
 
     it "generates the README with a section for the Code of Conduct, respecting the configured git default branch", git: ">= 2.28.0" do
-      sys_exec("git config --global init.defaultBranch main")
+      git("config --global init.defaultBranch main")
       bundle "gem #{gem_name} --coc"
 
       expect(bundled_app("#{gem_name}/README.md").read).to include("## Code of Conduct")
@@ -419,7 +419,7 @@ RSpec.describe "bundle gem" do
 
     context "git config github.user is absent" do
       before do
-        sys_exec("git config --global --unset github.user")
+        git("config --global --unset github.user")
         bundle "gem #{gem_name}"
       end
 
@@ -601,8 +601,8 @@ RSpec.describe "bundle gem" do
 
     context "git config user.{name,email} is not set" do
       before do
-        sys_exec("git config --global --unset user.name")
-        sys_exec("git config --global --unset user.email")
+        git("config --global --unset user.name")
+        git("config --global --unset user.email")
         bundle "gem #{gem_name}"
       end
 
@@ -937,6 +937,15 @@ RSpec.describe "bundle gem" do
       it_behaves_like "test framework is absent"
     end
 
+    context "gem.test setting set to a test framework and --no-test" do
+      before do
+        bundle "config set gem.test rspec"
+        bundle "gem #{gem_name} --no-test"
+      end
+
+      it_behaves_like "test framework is absent"
+    end
+
     context "--ci with no argument" do
       it "does not generate any CI config" do
         bundle "gem #{gem_name}"
@@ -1075,6 +1084,19 @@ RSpec.describe "bundle gem" do
       end
     end
 
+    context "gem.ci setting set to a CI service and --no-ci" do
+      before do
+        bundle "config set gem.ci github"
+        bundle "gem #{gem_name} --no-ci"
+      end
+
+      it "does not generate any CI config" do
+        expect(bundled_app("#{gem_name}/.github/workflows/main.yml")).to_not exist
+        expect(bundled_app("#{gem_name}/.gitlab-ci.yml")).to_not exist
+        expect(bundled_app("#{gem_name}/.circleci/config.yml")).to_not exist
+      end
+    end
+
     context "--linter with no argument" do
       it "does not generate any linter config" do
         bundle "gem #{gem_name}"
@@ -1202,6 +1224,18 @@ RSpec.describe "bundle gem" do
       end
     end
 
+    context "gem.linter setting set to a linter and --no-linter" do
+      before do
+        bundle "config set gem.linter rubocop"
+        bundle "gem #{gem_name} --no-linter"
+      end
+
+      it "does not generate any linter config" do
+        expect(bundled_app("#{gem_name}/.rubocop.yml")).to_not exist
+        expect(bundled_app("#{gem_name}/.standard.yml")).to_not exist
+      end
+    end
+
     context "--edit option" do
       it "opens the generated gemspec in the user's text editor" do
         output = bundle "gem #{gem_name} --edit=echo"
@@ -1317,7 +1351,7 @@ RSpec.describe "bundle gem" do
   context "testing --github-username option against git and bundle config settings" do
     context "without git config set" do
       before do
-        sys_exec("git config --global --unset github.user")
+        git("config --global --unset github.user")
       end
       context "with github-username option in bundle config settings set to some value" do
         before do
@@ -1354,7 +1388,7 @@ RSpec.describe "bundle gem" do
   context "testing github_username bundle config against git config settings" do
     context "without git config set" do
       before do
-        sys_exec("git config --global --unset github.user")
+        git("config --global --unset github.user")
       end
 
       it_behaves_like "github_username configuration"

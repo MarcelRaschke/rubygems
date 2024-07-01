@@ -29,7 +29,10 @@ module Bundler
       write_build_info_file
       run_post_build_hooks
 
-      generate_bin
+      SharedHelpers.filesystem_access(bin_dir, :write) do
+        generate_bin
+      end
+
       generate_plugins
 
       write_spec
@@ -45,7 +48,17 @@ module Bundler
       spec
     end
 
-    def pre_install_checks
+    if Bundler.rubygems.provides?("< 3.5")
+      def pre_install_checks
+        super
+      rescue Gem::FilePermissionError
+        # Ignore permission checks in RubyGems. Instead, go on, and try to write
+        # for real. We properly handle permission errors when they happen.
+        nil
+      end
+    end
+
+    def ensure_writable_dir(dir)
       super
     rescue Gem::FilePermissionError
       # Ignore permission checks in RubyGems. Instead, go on, and try to write

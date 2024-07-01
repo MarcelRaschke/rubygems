@@ -1,3 +1,41 @@
+# 3.5.14 / 2024-06-21
+
+## Enhancements:
+
+* Installs bundler 2.5.14 as a default gem.
+
+## Bug fixes:
+
+* Make "bundler? update --bundler" behave identically. Pull request
+  [#7778](https://github.com/rubygems/rubygems/pull/7778) by x-yuri
+
+# 3.5.13 / 2024-06-14
+
+## Enhancements:
+
+* Installs bundler 2.5.13 as a default gem.
+
+## Bug fixes:
+
+* Never remove executables that may belong to a default gem. Pull request
+  [#7747](https://github.com/rubygems/rubygems/pull/7747) by
+  deivid-rodriguez
+
+# 3.5.12 / 2024-06-13
+
+## Enhancements:
+
+* Installs bundler 2.5.12 as a default gem.
+
+## Bug fixes:
+
+* Fix `gem uninstall` unresolved specifications warning. Pull request
+  [#7667](https://github.com/rubygems/rubygems/pull/7667) by
+  deivid-rodriguez
+* Fix `gem pristine` sometimes failing to pristine user installed gems.
+  Pull request [#7664](https://github.com/rubygems/rubygems/pull/7664) by
+  deivid-rodriguez
+
 # 3.5.11 / 2024-05-28
 
 ## Enhancements:
